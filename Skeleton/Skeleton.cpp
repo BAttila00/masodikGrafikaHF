@@ -259,10 +259,6 @@ public:
 
 Scene scene;
 
-vec3 Fresnel(vec3 F0, float cosTheta) {
-	return F0 + (vec3(1, 1, 1) - F0) * pow(cosTheta, 5);
-}
-
 float Fresnel(float n, float kappa) {
 	return ((n - 1) * (n - 1) + kappa * kappa) / ((n + 1) * (n + 1) + kappa * kappa);
 }
