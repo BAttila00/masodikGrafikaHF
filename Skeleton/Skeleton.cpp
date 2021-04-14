@@ -143,51 +143,9 @@ public:
 
 ConvexPolyhedron convexPolyhedron;
 
-Hit firstIntersect(Ray ray) {
-	Hit bestHit;
-	bestHit.t = -1;
-	bestHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 0.02f, 0);
-	bestHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 1.2f, 1);
-
-	if (dot(ray.dir, bestHit.normal) > 0) bestHit.normal = bestHit.normal * (-1);
-	return bestHit;
-}
-
-vec3 Fresnel(vec3 F0, float cosTheta) {
-	return F0 + (vec3(1, 1, 1) - F0) * pow(cosTheta, 5);
-}
-
 vec3 reflect(vec3 V, vec3 N) {
 	return V - N * dot(N, V) * 2;
 };
-
-vec3 trace(Ray ray) {
-	vec3 weight = vec3(1, 1, 1);
-	vec3 outRadiance = vec3(0, 0, 0);
-	for (int d = 0; d < maxdepth; d++) {
-		Hit hit = firstIntersect(ray);
-		if (hit.t < 0) break;
-		if (hit.mat < 2) {		//rough surface
-			vec3 lightdir = normalize(lightPosition - hit.position);
-			float cosTheta = dot(hit.normal, lightdir);
-			if (cosTheta > 0) {
-				vec3 LeIn = Le / dot(lightPosition - hit.position, lightPosition - hit.position);
-				outRadiance = outRadiance + (ray.weight * LeIn * kd[hit.mat] * cosTheta);
-				vec3 halfway = normalize(-ray.dir + lightdir);
-				float cosDelta = dot(hit.normal, halfway);
-				if (cosDelta > 0) outRadiance = outRadiance + (ray.weight * LeIn * ks[hit.mat] * pow(cosDelta, shininess));
-			}
-			ray.weight = ray.weight * ka;
-			break;
-		}
-		//mirror reflection
-		ray.weight = ray.weight * (F0 + (vec3(1, 1, 1) - F0) * pow(dot(-ray.dir, hit.normal), 5));
-		ray.start = hit.position + hit.normal * epsilon;
-		ray.dir = reflect(ray.dir, hit.normal);
-	}
-	outRadiance = outRadiance + (ray.weight * La);
-	return outRadiance;
-}
 
 //------------------------------------------------
 
@@ -239,22 +197,74 @@ GPUProgram shader;
 Camera camera;
 bool animate = true;
 
-float Fresnel(float n, float kappa) {
-	return ((n - 1) * (n - 1) + kappa * kappa) / ((n + 1) * (n + 1) + kappa * kappa);
+class Scene {
+
+public:
+	Scene() {
+
+	}
+	Hit firstIntersect(Ray ray) {
+		Hit bestHit;
+		bestHit.t = -1;
+		bestHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 0.02f, 0);
+		bestHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 1.2f, 1);
+
+		if (dot(ray.dir, bestHit.normal) > 0) bestHit.normal = bestHit.normal * (-1);
+		return bestHit;
+	}
+
+	vec3 trace(Ray ray) {
+		vec3 weight = vec3(1, 1, 1);
+		vec3 outRadiance = vec3(0, 0, 0);
+		for (int d = 0; d < maxdepth; d++) {
+			Hit hit = firstIntersect(ray);
+			if (hit.t < 0) break;
+			if (hit.mat < 2) {		//rough surface
+				vec3 lightdir = normalize(lightPosition - hit.position);
+				float cosTheta = dot(hit.normal, lightdir);
+				if (cosTheta > 0) {
+					vec3 LeIn = Le / dot(lightPosition - hit.position, lightPosition - hit.position);
+					outRadiance = outRadiance + (ray.weight * LeIn * kd[hit.mat] * cosTheta);
+					vec3 halfway = normalize(-ray.dir + lightdir);
+					float cosDelta = dot(hit.normal, halfway);
+					if (cosDelta > 0) outRadiance = outRadiance + (ray.weight * LeIn * ks[hit.mat] * pow(cosDelta, shininess));
+				}
+				ray.weight = ray.weight * ka;
+				break;
+			}
+			//mirror reflection
+			ray.weight = ray.weight * (F0 + (vec3(1, 1, 1) - F0) * pow(dot(-ray.dir, hit.normal), 5));
+			ray.start = hit.position + hit.normal * epsilon;
+			ray.dir = reflect(ray.dir, hit.normal);
+		}
+		outRadiance = outRadiance + (ray.weight * La);
+		return outRadiance;
+	}
+
+	void render(std::vector<vec4>& image) {
+		long timeStart = glutGet(GLUT_ELAPSED_TIME);
+
+		for (int Y = 0; Y < windowHeight; Y++) {	//soronként végigmegyünk a képernyö összes pixelén
+#pragma omp parallel for
+			for (int X = 0; X < windowWidth; X++) {
+				vec3 color = trace(camera.getRay(X, Y));	//meghatározzuk a kamerából az adott pixelbe mneö sugarat. Majd ezt végigkövetjük (trace)								
+				image[Y * windowWidth + X] = vec4(color.x, color.y, color.z, 1);		//ez lesz a képünk, gyakorlatilag egy ablakméretü 2D tömb melyben az egyes pixelek színei vannak
+																						//ezt kell majd feltextúráznunk egy négyzetre ami lefedi a teljes képernyöt
+			}
+		}
+		printf("Render Time: %d ms\n", glutGet(GLUT_ELAPSED_TIME) - timeStart);
+	}
+
+};
+
+Scene scene;
+
+vec3 Fresnel(vec3 F0, float cosTheta) {
+	return F0 + (vec3(1, 1, 1) - F0) * pow(cosTheta, 5);
 }
 
-void render(std::vector<vec4>& image) {
-	long timeStart = glutGet(GLUT_ELAPSED_TIME);
-
-	for (int Y = 0; Y < windowHeight; Y++) {	//soronként végigmegyünk a képernyö összes pixelén
-#pragma omp parallel for
-		for (int X = 0; X < windowWidth; X++) {
-			vec3 color = trace(camera.getRay(X, Y));	//meghatározzuk a kamerából az adott pixelbe mneö sugarat. Majd ezt végigkövetjük (trace)								
-			image[Y * windowWidth + X] = vec4(color.x, color.y, color.z, 1);		//ez lesz a képünk, gyakorlatilag egy ablakméretü 2D tömb melyben az egyes pixelek színei vannak
-																					//ezt kell majd feltextúráznunk egy négyzetre ami lefedi a teljes képernyöt
-		}
-	}
-	printf("Render Time: %d ms\n", glutGet(GLUT_ELAPSED_TIME) - timeStart);
+float Fresnel(float n, float kappa) {
+	return ((n - 1) * (n - 1) + kappa * kappa) / ((n + 1) * (n + 1) + kappa * kappa);
 }
 
 class FullScreenTexturedQuad {
@@ -373,7 +383,7 @@ void onDisplay() {
 	wEye = camera.eye;
 
 	std::vector<vec4> image(windowWidth * windowHeight);
-	render(image);
+	scene.render(image);
 	fullScreenTexturedQuad->LoadTexture(image);
 	fullScreenTexturedQuad->Draw();
 	glutSwapBuffers();									// exchange the two buffers
