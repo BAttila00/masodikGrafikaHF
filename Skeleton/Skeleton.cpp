@@ -1,6 +1,3 @@
-//ez kb ugyanaz mint ez: d:\Dokumentumok\Attila\Egyetem\AA_02.Felev\Grafika\GyakorloProgramok\RayCastingGPU_02\
-//csak CPU sugárkövetéssel megvalósítva
-
 
 #include "framework.h"
 
@@ -62,39 +59,87 @@ const int objFaces = 12;
 
 int top;
 vec3 wEye;
-vec3 v[20];
-int planes[objFaces * 3];
 vec3 kd[2], ks[2], F0;
 
-void getObjPlane(int i, float scale, vec3& p, vec3& normal) {
-	vec3 p1 = v[planes[3 * i] - 1];
-	vec3 p2 = v[planes[3 * i + 1] - 1];
-	vec3 p3 = v[planes[3 * i + 2] - 1];
-	normal = cross(p2 - p1, p3 - p1);
-	if (dot(p1, normal) < 0) normal = -normal;
-	p = p1 * scale + vec3(0, 0, 0.03f);
-}
+class ConvexPolyhedron {
+	vec3 v[20];
+	int planes[objFaces * 3];
+public:
+	ConvexPolyhedron() {
 
-Hit solveQuadratic(float a, float b, float c, Ray ray, Hit hit, float zmin, float zmax, float normz) {
-	float discr = b * b - 4.0f * a * c;
-	if (discr >= 0) {
-		float sqrt_discr = sqrt(discr);
-		float t1 = (-b + sqrt_discr) / 2.0f / a;
-		vec3 p = ray.start + ray.dir * t1;
-		if (p.z > zmax || p.z < zmin) t1 = -1;
-		float t2 = (-b - sqrt_discr) / 2.0f / a;
-		p = ray.start + ray.dir * t2;
-		if (p.z > zmax || p.z < zmin) t2 = -1;
-		if (t2 > 0 && (t2 < t1 || t1 < 0)) t1 = t2;
-		if (t1 > 0 && (t1 < hit.t || hit.t < 0)) {
-			hit.t = t1;
-			hit.position = ray.start + ray.dir * hit.t;
-			hit.normal = normalize(vec3(-hit.position.x, -hit.position.y, normz));
-			hit.mat = 2;
+	};
+	ConvexPolyhedron(std::vector<vec3> _v, std::vector<int> _planes) {
+		for (size_t i = 0; i < _v.size(); i++)
+		{
+			v[i] = _v[i];
+		}
+		for (size_t i = 0; i < _planes.size(); i++)
+		{
+			planes[i] = _planes[i];
 		}
 	}
-	return hit;
-}
+
+	void getObjPlane(int i, float scale, vec3& p, vec3& normal) {
+		vec3 p1 = v[planes[3 * i] - 1];
+		vec3 p2 = v[planes[3 * i + 1] - 1];
+		vec3 p3 = v[planes[3 * i + 2] - 1];
+		normal = cross(p2 - p1, p3 - p1);
+		if (dot(p1, normal) < 0) normal = -normal;
+		p = p1 * scale + vec3(0, 0, 0.03f);
+	}
+
+	Hit solveQuadratic(float a, float b, float c, Ray ray, Hit hit, float zmin, float zmax, float normz) {
+		float discr = b * b - 4.0f * a * c;
+		if (discr >= 0) {
+			float sqrt_discr = sqrt(discr);
+			float t1 = (-b + sqrt_discr) / 2.0f / a;
+			vec3 p = ray.start + ray.dir * t1;
+			if (p.z > zmax || p.z < zmin) t1 = -1;
+			float t2 = (-b - sqrt_discr) / 2.0f / a;
+			p = ray.start + ray.dir * t2;
+			if (p.z > zmax || p.z < zmin) t2 = -1;
+			if (t2 > 0 && (t2 < t1 || t1 < 0)) t1 = t2;
+			if (t1 > 0 && (t1 < hit.t || hit.t < 0)) {
+				hit.t = t1;
+				hit.position = ray.start + ray.dir * hit.t;
+				hit.normal = normalize(vec3(-hit.position.x, -hit.position.y, normz));
+				hit.mat = 2;
+			}
+		}
+		return hit;
+	}
+
+	Hit intersectConvexPolyhedron(Ray ray, Hit hit, float scale, int mat) {
+		for (int i = 0; i < objFaces; i++)
+		{
+			vec3 p1;
+			vec3 normal;
+			getObjPlane(i, scale, p1, normal);
+			float ti = abs(dot(normal, ray.dir)) > epsilon ? dot(p1 - ray.start, normal) / dot(normal, ray.dir) : -1;
+			if (ti <= epsilon || (ti > hit.t && hit.t > 0)) continue;
+			vec3 intersect = ray.start + ray.dir * ti;
+			bool outside = false;
+			for (int j = 0; j < objFaces; j++) {
+				if (i == j) continue;
+				vec3 p11, n;
+				getObjPlane(j, scale, p11, n);
+				if (dot(n, intersect - p11) > 0) {
+					outside = true;
+					break;
+				}
+			}
+			if (!outside) {
+				hit.t = ti;
+				hit.position = intersect;
+				hit.normal = normalize(normal);
+				hit.mat = mat;
+			}
+		}
+		return hit;
+	}
+
+
+};
 
 Hit intersectMirascope(Ray ray, Hit hit) {
 	//const float f = 0.25f;
@@ -111,41 +156,14 @@ Hit intersectMirascope(Ray ray, Hit hit) {
 	return hit;
 }
 
-Hit intersectConvexPolyhedron(Ray ray, Hit hit, float scale, int mat) {
-	for (int i = 0; i < objFaces; i++)
-	{
-		vec3 p1;
-		vec3 normal;
-		getObjPlane(i, scale, p1, normal);
-		float ti = abs(dot(normal, ray.dir)) > epsilon ? dot(p1 - ray.start, normal) / dot(normal, ray.dir) : -1;
-		if (ti <= epsilon || (ti > hit.t && hit.t > 0)) continue;
-		vec3 intersect = ray.start + ray.dir * ti;
-		bool outside = false;
-		for (int j = 0; j < objFaces; j++) {
-			if (i == j) continue;
-			vec3 p11, n;
-			getObjPlane(j, scale, p11, n);
-			if (dot(n, intersect - p11) > 0) {
-				outside = true;
-				break;
-			}
-		}
-		if (!outside) {
-			hit.t = ti;
-			hit.position = intersect;
-			hit.normal = normalize(normal);
-			hit.mat = mat;
-		}
-	}
-	return hit;
-}
+ConvexPolyhedron convexPolyhedron;
 
 Hit firstIntersect(Ray ray) {
 	Hit bestHit;
 	bestHit.t = -1;
 	bestHit = intersectMirascope(ray, bestHit);
-	bestHit = intersectConvexPolyhedron(ray, bestHit, 0.02f, 0);
-	bestHit = intersectConvexPolyhedron(ray, bestHit, 1.2f, 1);
+	bestHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 0.02f, 0);
+	bestHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 1.2f, 1);
 
 	if (dot(ray.dir, bestHit.normal) > 0) bestHit.normal = bestHit.normal * (-1);
 	return bestHit;
@@ -189,13 +207,13 @@ vec3 trace(Ray ray) {
 
 //------------------------------------------------
 
-struct Camera {
-	//---------------------------
-	vec3 eye, lookat, right;
+class Camera {
+	vec3 lookat, right;
 	vec3 pvup;	//preferált függöleges irány
 	vec3 rvup;	//valódi függöleges irány
 	float fov = 45 * (float)M_PI / 180;
-
+public:
+	vec3 eye;
 	Camera() : eye(0, 1, 1), pvup(0, 0, 1), lookat(0, 0, 0) {
 		set();
 	}
@@ -334,7 +352,7 @@ void onInitialization() {
 	};
 	for (int i = 0; i < vLocal.size(); i++) {
 		//shader.setUniform(vLocal[i], "v[" + std::to_string(i) + "]");
-		v[i] = vLocal[i];
+		//v[i] = vLocal[i];
 	}
 
 	std::vector<int> planesLocal = {
@@ -353,8 +371,10 @@ void onInitialization() {
 	};
 	for (int i = 0; i < planesLocal.size(); i++) {
 		//shader.setUniform(planesLocal[i], "planes[" + std::to_string(i) + "]");
-		planes[i] = planesLocal[i];
+		//planes[i] = planesLocal[i];
 	}
+
+	convexPolyhedron = ConvexPolyhedron(vLocal, planesLocal);
 
 	//shader.setUniform(vec3(0.1f, 0.2f, 0.3f), "kd[0]");
 	//shader.setUniform(vec3(1.5f, 0.6f, 0.4f), "kd[1]");
