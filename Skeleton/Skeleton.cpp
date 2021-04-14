@@ -184,9 +184,17 @@ public:
 	}
 	Hit firstIntersect(Ray ray) {
 		Hit bestHit;
+		Hit tempHit;
 		bestHit.t = -1;
-		bestHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 0.02f, 0);
-		bestHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 1.2f, 1);
+		tempHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 0.02f, 0);
+		if (tempHit.t > 0 && (bestHit.t < 0 || tempHit.t < bestHit.t))  bestHit = tempHit;
+
+		//tempHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 1.0f, 2);
+		//if (tempHit.t > 0 && (bestHit.t < 0 || tempHit.t < bestHit.t))  bestHit = tempHit;
+
+		tempHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 1.2f, 1);
+		if (tempHit.t > 0 && (bestHit.t < 0 || tempHit.t < bestHit.t))  bestHit = tempHit;
+
 
 		if (dot(ray.dir, bestHit.normal) > 0) bestHit.normal = bestHit.normal * (-1);
 		return bestHit;
@@ -341,10 +349,12 @@ void onInitialization() {
 	ks[1] = vec3(1, 1, 1);
 
 	//speifikáció szerinti arany törésmutatók és kioltási tényezök r,g,b hullámhosszokon
+	// ezüst: 0.14/4.1, 0.16/2.3, 0.13/3.1
 	float redFresnel = Fresnel(0.17, 3.1);
 	float greenFresnel = Fresnel(0.35, 2.7);
 	float blueFresnel = Fresnel(1.5, 1.9);
 	F0 = vec3(redFresnel, greenFresnel, blueFresnel);
+	//F0 = vec3(1.0f, 1.0f, 1.0f);		//teljes visszaverödés
 
 	fullScreenTexturedQuad = new FullScreenTexturedQuad(windowWidth, windowHeight);
 }
