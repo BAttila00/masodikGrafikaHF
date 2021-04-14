@@ -4,6 +4,34 @@
 
 #include "framework.h"
 
+const char* vertexSourceForTexturing = R"(
+	#version 330
+    precision highp float;
+
+	layout(location = 0) in vec2 cVertexPosition;	// Attrib Array 0
+	out vec2 texcoord;
+
+	void main() {
+		texcoord = (cVertexPosition + vec2(1, 1))/2;							// -1,1 to 0,1
+																				//most igy adjuk meg az uv vektort, de lehetne normal modon is
+		gl_Position = vec4(cVertexPosition.x, cVertexPosition.y, 0, 1); 		// transform to clipping space
+	}
+)";
+
+// fragment shader in GLSL
+const char* fragmentSourceForTexturing = R"(
+	#version 330
+    precision highp float;
+
+	uniform sampler2D textureUnit;
+	in  vec2 texcoord;			// interpolated texture coordinates
+	out vec4 fragmentColor;		// output that goes to the raster memory as told by glBindFragDataLocation
+
+	void main() {
+		fragmentColor = texture(textureUnit, texcoord); 
+	}
+)";
+
 //------------------------------------------------
 
 const vec3 La = vec3(0.5f, 0.6f, 0.6f);
@@ -227,6 +255,51 @@ void render(std::vector<vec4>& image) {
 	printf("Render Time: %d ms\n", glutGet(GLUT_ELAPSED_TIME) - timeStart);
 }
 
+class FullScreenTexturedQuad {
+	unsigned int vao = 0;	// vertex array object id
+	unsigned int textureId = 0; //texture id
+public:
+	FullScreenTexturedQuad(int windowWidth, int windowHeight)
+	{
+		glGenVertexArrays(1, &vao);	// create 1 vertex array object
+		glBindVertexArray(vao);		// make it active
+
+		unsigned int vbo;		// vertex buffer objects
+		glGenBuffers(1, &vbo);	// Generate 1 vertex buffer objects
+
+		// vertex coordinates: vbo0 -> Attrib Array 0 -> vertexPosition of the vertex shader
+		glBindBuffer(GL_ARRAY_BUFFER, vbo); // make it active, it is an array
+		float vertexCoords[] = { -1, -1,  1, -1,  1, 1,  -1, 1 };	// two triangles forming a quad
+		glBufferData(GL_ARRAY_BUFFER, sizeof(vertexCoords), vertexCoords, GL_STATIC_DRAW);	   // copy to that part of the memory which is not modified 
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, NULL);     // stride and offset: it is tightly packed
+
+		glGenTextures(1, &textureId);
+		glBindTexture(GL_TEXTURE_2D, textureId);    // binding
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); // sampling
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	}
+
+	void LoadTexture(std::vector<vec4>& image) {
+		glBindTexture(GL_TEXTURE_2D, textureId);    // binding
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowWidth, windowHeight, 0, GL_RGBA, GL_FLOAT, &image[0]); // To GPU
+	}
+
+	void Draw() {
+		glBindVertexArray(vao);	// make the vao and its vbos active playing the role of the data source
+		int location = glGetUniformLocation(shader.getId(), "textureUnit");
+		const unsigned int textureUnit = 0;
+		if (location >= 0) {
+			glUniform1i(location, textureUnit);
+			glActiveTexture(GL_TEXTURE0 + textureUnit);
+			glBindTexture(GL_TEXTURE_2D, textureId);
+		}
+		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);	// draw two triangles forming a quad
+	}
+};
+
+FullScreenTexturedQuad* fullScreenTexturedQuad;
+
 
 // Initialization, create an OpenGL context
 void onInitialization() {
@@ -246,7 +319,7 @@ void onInitialization() {
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, NULL);     // stride and offset: it is tightly packed
 
 	// create program for the GPU
-	//shader.create(vertexSourceForTexturing, fragmentSourceForTexturing, "fragmentColor");
+	shader.create(vertexSourceForTexturing, fragmentSourceForTexturing, "fragmentColor");
 	//shader.setUniform(1, "top");
 	top = 1;
 
@@ -299,6 +372,7 @@ void onInitialization() {
 	//shader.setUniform(vec3(redFresnel, greenFresnel, blueFresnel), "F0");
 	F0 = vec3(redFresnel, greenFresnel, blueFresnel);
 
+	fullScreenTexturedQuad = new FullScreenTexturedQuad(windowWidth, windowHeight);
 }
 
 // Window has become invalid: Redraw
@@ -314,6 +388,8 @@ void onDisplay() {
 
 	std::vector<vec4> image(windowWidth * windowHeight);
 	render(image);
+	fullScreenTexturedQuad->LoadTexture(image);
+	fullScreenTexturedQuad->Draw();
 	//glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	glutSwapBuffers();									// exchange the two buffers
 }
