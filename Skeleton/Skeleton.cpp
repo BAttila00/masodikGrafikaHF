@@ -60,6 +60,7 @@ const int objFaces = 12;
 int top;
 vec3 wEye;
 vec3 kd[2], ks[2], F0;
+vec3 F0Perfect;
 
 class ConvexPolyhedron {
 	vec3 v[20];
@@ -98,20 +99,27 @@ public:
 			if (ti <= epsilon || (ti > hit.t && hit.t > 0)) continue;
 			vec3 intersect = ray.start + ray.dir * ti;
 			bool outside = false;
+			bool closeToEdge = false;
 			for (int j = 0; j < objFaces; j++) {
 				if (i == j) continue;
 				vec3 p11, n;
 				getObjPlane(j, scale, p11, n);
+				//printf("%f; ", dot(n, intersect - p11));
 				if (dot(n, intersect - p11) > 0) {
 					outside = true;
 					break;
+				}
+				if (dot(n, intersect - p11) > -0.15 && dot(n, intersect - p11) <= 0) {
+					hit.mat = 0;				//ha közel vagyunk a dedokaéder széleihez akkor legyen a material 0-ás azonosítójú, azaz diffúz szürkés
+					closeToEdge = true;
 				}
 			}
 			if (!outside) {
 				hit.t = ti;
 				hit.position = intersect;
 				hit.normal = normalize(normal);
-				hit.mat = mat;
+				if(!closeToEdge)
+					hit.mat = mat;
 			}
 		}
 		return hit;
@@ -228,10 +236,10 @@ public:
 		//tempHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 1.0f, 2);
 		//if (tempHit.t > 0 && (bestHit.t < 0 || tempHit.t < bestHit.t))  bestHit = tempHit;
 
-		tempHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 1.2f, 1);
+		tempHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 1.2f, 3);		//mat = 2 -> arany; mat = 3 -> teljes visszaverödés
 		if (tempHit.t > 0 && (bestHit.t < 0 || tempHit.t < bestHit.t))  bestHit = tempHit;
 
-		tempHit = sphere.intersect(ray, 1);
+		tempHit = sphere.intersect(ray, 2);
 		if (tempHit.t > 0 && (bestHit.t < 0 || tempHit.t < bestHit.t))  bestHit = tempHit;
 
 		if (dot(ray.dir, bestHit.normal) > 0) bestHit.normal = bestHit.normal * (-1);
@@ -257,9 +265,17 @@ public:
 				break;
 			}
 			//mirror reflection
-			ray.weight = ray.weight * (F0 + (vec3(1, 1, 1) - F0) * pow(dot(-ray.dir, hit.normal), 5));
-			ray.start = hit.position + hit.normal * epsilon;
-			ray.dir = reflect(ray.dir, hit.normal);
+			if (hit.mat == 2) {
+				ray.weight = ray.weight * (F0 + (vec3(1, 1, 1) - F0) * pow(dot(-ray.dir, hit.normal), 5));
+				ray.start = hit.position + hit.normal * epsilon;
+				ray.dir = reflect(ray.dir, hit.normal);
+			}
+			if (hit.mat == 3) {
+				ray.weight = ray.weight * (F0Perfect + (vec3(1, 1, 1) - F0Perfect) * pow(dot(-ray.dir, hit.normal), 5));
+				ray.start = hit.position + hit.normal * epsilon;
+				ray.dir = reflect(ray.dir, hit.normal);
+			}
+
 		}
 		outRadiance = outRadiance + (ray.weight * La);
 		return outRadiance;
@@ -276,7 +292,7 @@ public:
 																						//ezt kell majd feltextúráznunk egy négyzetre ami lefedi a teljes képernyöt
 			}
 		}
-		printf("Render Time: %d ms\n", glutGet(GLUT_ELAPSED_TIME) - timeStart);
+		//printf("Render Time: %d ms\n", glutGet(GLUT_ELAPSED_TIME) - timeStart);
 	}
 
 };
@@ -392,7 +408,7 @@ void onInitialization() {
 	float greenFresnel = Fresnel(0.35, 2.7);
 	float blueFresnel = Fresnel(1.5, 1.9);
 	F0 = vec3(redFresnel, greenFresnel, blueFresnel);
-	//F0 = vec3(1.0f, 1.0f, 1.0f);		//teljes visszaverödés
+	F0Perfect = vec3(1.0f, 1.0f, 1.0f);		//teljes visszaverödés
 
 	fullScreenTexturedQuad = new FullScreenTexturedQuad(windowWidth, windowHeight);
 }
@@ -436,7 +452,7 @@ void onMouseMotion(int pX, int pY) {
 // Idle event indicating that some time elapsed: do animation here
 void onIdle() {
 	if (animate) {
-		camera.Animate(glutGet(GLUT_ELAPSED_TIME) / 3000.0f);
+		camera.Animate(glutGet(GLUT_ELAPSED_TIME) / 10000.0f);
 	}
 	glutPostRedisplay();
 }
