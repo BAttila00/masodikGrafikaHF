@@ -214,7 +214,6 @@ public:
 	}
 
 	vec3 trace(Ray ray) {
-		vec3 weight = vec3(1, 1, 1);
 		vec3 outRadiance = vec3(0, 0, 0);
 		for (int d = 0; d < maxdepth; d++) {
 			Hit hit = firstIntersect(ray);
