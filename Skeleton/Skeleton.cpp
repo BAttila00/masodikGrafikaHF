@@ -141,27 +141,11 @@ public:
 
 };
 
-Hit intersectMirascope(Ray ray, Hit hit) {
-	//const float f = 0.25f;
-	//const float H = 0.98f * f;
-
-	//float a = dot(ray.dir.xy, ray.dir.xy);
-	//float b = dot(ray.dir.xy, ray.start.xy) * 2 - 4 * f * ray.dir.z;
-	//float c = dot(ray.start.xy, ray.start.xy) - 4 * f * ray.start.z;
-	//hit = solveQuadratic(a, b, c, ray, hit, 0, f / 2, 2 * f);
-	//if (top == 0) return hit;
-	//b += 8 * f * ray.dir.z;
-	//c += 8 * f * ray.start.z - 4 * f * f;
-	//hit = solveQuadratic(a, b, c, ray, hit, f / 2, H, -2 * f);
-	return hit;
-}
-
 ConvexPolyhedron convexPolyhedron;
 
 Hit firstIntersect(Ray ray) {
 	Hit bestHit;
 	bestHit.t = -1;
-	bestHit = intersectMirascope(ray, bestHit);
 	bestHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 0.02f, 0);
 	bestHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 1.2f, 1);
 
@@ -338,7 +322,6 @@ void onInitialization() {
 
 	// create program for the GPU
 	shader.create(vertexSourceForTexturing, fragmentSourceForTexturing, "fragmentColor");
-	//shader.setUniform(1, "top");
 	top = 1;
 
 	const float g = 0.618f;
@@ -350,10 +333,6 @@ void onInitialization() {
 		vec3(1,1,1), vec3(-1,1,1), vec3(-1,-1,1), vec3(1,-1,1),
 		vec3(1,-1,-1), vec3(1,1,-1), vec3(-1,1,-1), vec3(-1,-1,-1)
 	};
-	for (int i = 0; i < vLocal.size(); i++) {
-		//shader.setUniform(vLocal[i], "v[" + std::to_string(i) + "]");
-		//v[i] = vLocal[i];
-	}
 
 	std::vector<int> planesLocal = {
 		1,2,16,
@@ -369,17 +348,9 @@ void onInitialization() {
 		14,10,19,
 		6,7,20
 	};
-	for (int i = 0; i < planesLocal.size(); i++) {
-		//shader.setUniform(planesLocal[i], "planes[" + std::to_string(i) + "]");
-		//planes[i] = planesLocal[i];
-	}
 
 	convexPolyhedron = ConvexPolyhedron(vLocal, planesLocal);
 
-	//shader.setUniform(vec3(0.1f, 0.2f, 0.3f), "kd[0]");
-	//shader.setUniform(vec3(1.5f, 0.6f, 0.4f), "kd[1]");
-	//shader.setUniform(vec3(5, 5, 5), "ks[0]");
-	//shader.setUniform(vec3(1, 1, 1), "ks[1]");
 	kd[0] = vec3(0.1f, 0.2f, 0.3f);
 	kd[1] = vec3(1.5f, 0.6f, 0.4f);
 	ks[0] = vec3(5, 5, 5);
@@ -389,7 +360,6 @@ void onInitialization() {
 	float redFresnel = Fresnel(0.17, 3.1);
 	float greenFresnel = Fresnel(0.35, 2.7);
 	float blueFresnel = Fresnel(1.5, 1.9);
-	//shader.setUniform(vec3(redFresnel, greenFresnel, blueFresnel), "F0");
 	F0 = vec3(redFresnel, greenFresnel, blueFresnel);
 
 	fullScreenTexturedQuad = new FullScreenTexturedQuad(windowWidth, windowHeight);
@@ -400,17 +370,12 @@ void onDisplay() {
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);							// background color 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the screen
 
-	//shader.setUniform(camera.eye, "wEye");
-	//shader.setUniform(camera.lookat, "wLookAt");
-	//shader.setUniform(camera.right, "wRight");
-	//shader.setUniform(camera.rvup, "wUp");
 	wEye = camera.eye;
 
 	std::vector<vec4> image(windowWidth * windowHeight);
 	render(image);
 	fullScreenTexturedQuad->LoadTexture(image);
 	fullScreenTexturedQuad->Draw();
-	//glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	glutSwapBuffers();									// exchange the two buffers
 }
 
