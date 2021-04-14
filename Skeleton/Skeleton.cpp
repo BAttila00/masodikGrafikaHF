@@ -122,6 +122,41 @@ public:
 
 ConvexPolyhedron convexPolyhedron;
 
+class Sphere {		//8. dia
+	vec3 center;
+	float radius;
+public:
+	Sphere() {
+
+	}
+
+	Sphere(const vec3& _center, float _radius) {
+		center = _center; 
+		radius = _radius;
+	}
+
+	Hit intersect(const Ray& ray, int material) {		//a kapott sugár hol metszi el ezt a gömböt
+		Hit hit;
+		vec3 dist = ray.start - center;
+		float a = dot(ray.dir, ray.dir);
+		float b = dot(dist, ray.dir) * 2;
+		float c = dot(dist, dist) - radius * radius;
+		float discr = b * b - 4 * a * c;
+		if (discr < 0) return hit;
+		float sqrt_discr = sqrtf(discr);
+		float t1 = (-b + sqrt_discr) / 2 / a;
+		float t2 = (-b - sqrt_discr) / 2 / a;
+		if (t1 <= 0) return hit; // t1 >= t2 for sure
+		hit.t = (t2 > 0) ? t2 : t1;
+		hit.position = ray.start + ray.dir * hit.t;
+		hit.normal = (hit.position - center) / radius;		//gömb esetén így számíthatjuk ki a normálvektort adott pontban (de csak gömbnél)
+		hit.mat = material;
+		return hit;
+	}
+};
+
+
+
 vec3 reflect(vec3 V, vec3 N) {
 	return V - N * dot(N, V) * 2;
 };
@@ -177,10 +212,11 @@ Camera camera;
 bool animate = true;
 
 class Scene {
+	Sphere sphere;
 
 public:
 	Scene() {
-
+		sphere = Sphere(vec3(0, 0, 0), 0.2f);
 	}
 	Hit firstIntersect(Ray ray) {
 		Hit bestHit;
@@ -195,6 +231,8 @@ public:
 		tempHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 1.2f, 1);
 		if (tempHit.t > 0 && (bestHit.t < 0 || tempHit.t < bestHit.t))  bestHit = tempHit;
 
+		tempHit = sphere.intersect(ray, 1);
+		if (tempHit.t > 0 && (bestHit.t < 0 || tempHit.t < bestHit.t))  bestHit = tempHit;
 
 		if (dot(ray.dir, bestHit.normal) > 0) bestHit.normal = bestHit.normal * (-1);
 		return bestHit;
