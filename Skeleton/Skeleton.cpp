@@ -88,27 +88,6 @@ public:
 		p = p1 * scale + vec3(0, 0, 0.03f);
 	}
 
-	Hit solveQuadratic(float a, float b, float c, Ray ray, Hit hit, float zmin, float zmax, float normz) {
-		float discr = b * b - 4.0f * a * c;
-		if (discr >= 0) {
-			float sqrt_discr = sqrt(discr);
-			float t1 = (-b + sqrt_discr) / 2.0f / a;
-			vec3 p = ray.start + ray.dir * t1;
-			if (p.z > zmax || p.z < zmin) t1 = -1;
-			float t2 = (-b - sqrt_discr) / 2.0f / a;
-			p = ray.start + ray.dir * t2;
-			if (p.z > zmax || p.z < zmin) t2 = -1;
-			if (t2 > 0 && (t2 < t1 || t1 < 0)) t1 = t2;
-			if (t1 > 0 && (t1 < hit.t || hit.t < 0)) {
-				hit.t = t1;
-				hit.position = ray.start + ray.dir * hit.t;
-				hit.normal = normalize(vec3(-hit.position.x, -hit.position.y, normz));
-				hit.mat = 2;
-			}
-		}
-		return hit;
-	}
-
 	Hit intersectConvexPolyhedron(Ray ray, Hit hit, float scale, int mat) {
 		for (int i = 0; i < objFaces; i++)
 		{
