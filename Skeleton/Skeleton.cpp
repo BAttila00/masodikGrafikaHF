@@ -166,7 +166,7 @@ public:
 
 class ImplicitSurface {
 	float a, b, c;
-	//a felület implicit egyenlete: exp(a*x^2+b*y^2-cz)-1 = 0 (a,b,c poz. nem egész)
+	//a felület implicit egyenlete: exp(a*x^2+b*y^2-cz)-1 = 0 (a,b,c pozitív nem egész)
 	// -> exp(a*x^2+b*y^2-cz) = 1 -> a*x^2+b*y^2-cz = 0 egyenletet kell megoldani
 
 public:
@@ -177,12 +177,24 @@ public:
 	}
 
 	Hit intersect(const Ray& ray, int material) {
+		//a felület implicit egyenletébe behelyettesítjük a sugár egyenletét
 		//a* (ray.start.x + ray.dir.x * t_metszes) ^ 2 + b * (ray.start.y + ray.dir.y * t_metszes) ^ 2 - c * (ray.start.z + ray.dir.z * t_metszes) = 0
 		//fenti másodfokú egyenletben t_metszes az ismeretlen (azon t idöpillanat amikor a sugár elmetszi ezen felületet)
 		//megoldani t_metszes-re, majd a kisebbik (de nagyobb nulla) t_metszes-t visszahelyettesíteni: hit.position = ray.start + ray.dir * t_metszes egyenletbe
 		//ebböl kapunk egymetszéspontot,amire meg kell nézni h belefér-e a megadott körbe -> 0,0,0 középpontú körtöl 0.3-nál kisebb távolságra van-e
 		//ha nem akkor eldobjuk, azaz hit.t = -1-et állítjuk be
 
+		Hit hit;
+		hit.t = -1;
+		float apar, bpar, cpar;		//a másodfokú egyenlet megoldóképletének együtthatói
+		apar = a * pow(ray.dir.x, 2) + b * pow(ray.dir.y, 2);
+		bpar = a * 2 * ray.start.x * ray.dir.x + b * 2 * ray.start.y * ray.dir.y + c * ray.dir.z;
+		cpar = a * pow(ray.start.x, 2) + b * pow(ray.start.y, 2) + c * ray.start.z;
+		float discr = bpar * bpar - 4 * apar * cpar;
+		if (discr < 0) return hit;
+		float sqrt_discr = sqrtf(discr);
+		float t1 = (-bpar + sqrt_discr) / 2 / apar;
+		float t2 = (-bpar - sqrt_discr) / 2 / apar;
 	}
 };
 
