@@ -145,6 +145,7 @@ public:
 
 	Hit intersect(const Ray& ray, int material) {		//a kapott sugár hol metszi el ezt a gömböt
 		Hit hit;
+		hit.t = -1;
 		vec3 dist = ray.start - center;
 		float a = dot(ray.dir, ray.dir);
 		float b = dot(dist, ray.dir) * 2;
@@ -160,6 +161,28 @@ public:
 		hit.normal = (hit.position - center) / radius;		//gömb esetén így számíthatjuk ki a normálvektort adott pontban (de csak gömbnél)
 		hit.mat = material;
 		return hit;
+	}
+};
+
+class ImplicitSurface {
+	float a, b, c;
+	//a felület implicit egyenlete: exp(a*x^2+b*y^2-cz)-1 = 0 (a,b,c poz. nem egész)
+	// -> exp(a*x^2+b*y^2-cz) = 1 -> a*x^2+b*y^2-cz = 0 egyenletet kell megoldani
+
+public:
+	ImplicitSurface(float _a, float _b, float _c) {
+		a = _a;
+		b = _b;
+		c = _c;
+	}
+
+	Hit intersect(const Ray& ray, int material) {
+		//a* (ray.start.x + ray.dir.x * t_metszes) ^ 2 + b * (ray.start.y + ray.dir.y * t_metszes) ^ 2 - c * (ray.start.z + ray.dir.z * t_metszes) = 0
+		//fenti másodfokú egyenletben t_metszes az ismeretlen (azon t idöpillanat amikor a sugár elmetszi ezen felületet)
+		//megoldani t_metszes-re, majd a kisebbik (de nagyobb nulla) t_metszes-t visszahelyettesíteni: hit.position = ray.start + ray.dir * t_metszes egyenletbe
+		//ebböl kapunk egymetszéspontot,amire meg kell nézni h belefér-e a megadott körbe -> 0,0,0 középpontú körtöl 0.3-nál kisebb távolságra van-e
+		//ha nem akkor eldobjuk, azaz hit.t = -1-et állítjuk be
+
 	}
 };
 
