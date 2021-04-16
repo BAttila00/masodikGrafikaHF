@@ -258,14 +258,6 @@ public:
 		eye = normalize(eye + pvup * step) * length(eye);
 		set();
 	}
-	void StepSide(float step) {		// fölfelé v lefelé lépünk egy kicsit
-		eye = normalize(eye + vec3(0,1,0) * step) * length(eye);
-		set();
-	}
-	void StepBack(float step) {		// fölfelé v lefelé lépünk egy kicsit
-		eye = normalize(eye + vec3(1, 0, 0) * step) * length(eye);
-		set();
-	}
 
 	Ray getRay(int X, int Y) {		//x, y koordinátákkal megadott pixelbe mutató sugár a szemböl (ray)
 		vec3 dir = lookat + right * (2.0f * (X + 0.5f) / windowWidth - 1) + rvup * (2.0f * (Y + 0.5f) / windowHeight - 1) - eye;
@@ -294,7 +286,7 @@ class Scene {
 
 public:
 	Scene() {
-		sphere = Sphere(vec3(0, 0, 0), 0.2f);
+		sphere = Sphere(vec3(-0.5f, 0, 0), 0.2f);
 		implicitSurface = ImplicitSurface(10.5f, 10.5f, 1.5f);
 	}
 	Hit firstIntersect(Ray ray) {
@@ -311,8 +303,8 @@ public:
 		tempHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 1.2f, 3);		//mat = 2 -> arany; mat = 3 -> teljes visszaverödés
 		if (tempHit.t > 0.0f && (bestHit.t < 0.0f || tempHit.t < bestHit.t))  bestHit = tempHit;
 
-		//tempHit = sphere.intersect(ray, 2);
-		//if (tempHit.t > 0.0f && (bestHit.t < 0.0f || tempHit.t < bestHit.t))  bestHit = tempHit;
+		tempHit = sphere.intersect(ray, 2);
+		if (tempHit.t > 0.0f && (bestHit.t < 0.0f || tempHit.t < bestHit.t))  bestHit = tempHit;
 
 		tempHit = implicitSurface.intersect(ray, 2);
 		if (tempHit.t > 0.0f && (bestHit.t < 0.0f || tempHit.t < bestHit.t))  bestHit = tempHit;
