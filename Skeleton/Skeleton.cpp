@@ -58,7 +58,6 @@ struct Ray {
 const int objFaces = 12;
 
 int top;
-vec3 wEye;
 vec3 kd[2], ks[2], F0Gold;
 vec3 F0PerfectReflect;
 
@@ -166,7 +165,7 @@ public:
 
 class ImplicitSurface {
 	float a, b, c;
-	//a felület implicit egyenlete: exp(a*x^2+b*y^2-cz)-1 = 0 (a,b,c pozitív nem egész)
+	//a felület implicit egyenlete: exp(a*x^2+b*y^2-cz)-1 = 0 (a,b,c pozitív nem egész) ->
 	// -> exp(a*x^2+b*y^2-cz) = 1 -> a*x^2+b*y^2-cz = 0 egyenletet kell megoldani
 
 public:
@@ -181,6 +180,7 @@ public:
 
 	Hit intersect(const Ray& ray, int material) {
 		//a felület implicit egyenletébe behelyettesítjük a sugár egyenletét
+		//pontosabban ebbe: mert elég ha itt teljesül az egyenlö nulla feltétel: a*x^2+b*y^2-cz = 0
 		//a* (ray.start.x + ray.dir.x * t_metszes) ^ 2 + b * (ray.start.y + ray.dir.y * t_metszes) ^ 2 - c * (ray.start.z + ray.dir.z * t_metszes) = 0
 		//fenti másodfokú egyenletben t_metszes az ismeretlen (azon t idöpillanat amikor a sugár elmetszi ezen felületet)
 		//megoldani t_metszes-re, majd a kisebbik (de nagyobb nulla) t_metszes-t visszahelyettesíteni: hit.position = ray.start + ray.dir * t_metszes egyenletbe
@@ -188,8 +188,8 @@ public:
 		//ha nem akkor eldobjuk, azaz hit.t = -1-et állítjuk be
 
 		Hit hit;
-		hit.t = -1;
-		float t_metszes;
+		hit.t = -1;			//ha t kisebb mint 0 akkor a sugár nem metszi el ezt az objektumot
+		float t_metszes;	//a metszés idöpontja
 		float apar, bpar, cpar;		//a másodfokú egyenlet megoldóképletének együtthatói
 		apar = a * pow(ray.dir.x, 2) + b * pow(ray.dir.y, 2);
 		bpar = a * 2 * ray.start.x * ray.dir.x + b * 2 * ray.start.y * ray.dir.y + c * ray.dir.z;
@@ -200,13 +200,14 @@ public:
 		float sqrt_discr = sqrtf(discr);
 		float t1 = (-bpar + sqrt_discr) / 2 / apar;
 		float t2 = (-bpar - sqrt_discr) / 2 / apar;
-		if (t1 <= 0) return hit;
-		t_metszes = (t2 > 0) ? t2 : t1;
-		vec3 position = ray.start + ray.dir * t_metszes;
-		vec3 distVector = position - vec3(0.0f, 0.0f, 0.0f);
+		if (t1 <= 0) return hit;	//ha t kisebb mint nulla akkor a sugár nem metszi el ezt az objektumot
+									//mivel t1 nagyobb mint t2 így t2 is biztos negatív
+		t_metszes = (t2 > 0) ? t2 : t1;		//ha t2 nagyobb mint nulla akkor mindig válasszuk azt hiszen biztos h kisebb mint t1
+		vec3 position = ray.start + ray.dir * t_metszes;		//a metszés helye
+		vec3 distVector = position - vec3(0.0f, 0.0f, 0.0f);	//meg kell néznünk h ezen metszéshely a 0.3 sugarú 0,0,0 középpontú körön belül van-e
 		float dist = length(distVector);
-		if (dist > 0.3) return hit;
-		hit.t = t_metszes;
+		if (dist > 0.3) return hit;								//ha nincs belül akkor dobjuk el a metszéspontot -> nincs metszéspont
+		hit.t = t_metszes;										//egyébként a normál módon járjunk el, állítsuk be a hit (metszés) tulajdonságait és térjünk vissza vele
 		hit.position = ray.start + ray.dir * hit.t;
 		hit.normal = normalize(gradiens(position));
 		hit.mat = material;
@@ -214,11 +215,15 @@ public:
 	}
 
 	/// <summary>
-	/// Normálvektor számításához
+	/// Gradiens kiszámítása adott pontban (Normálvektor számításához)
 	/// </summary>
 	/// <param name="position"></param>
 	/// <returns>a normálvektor az adott pontban</returns>
 	vec3 gradiens(vec3 position) {
+		//https://www.derivative-calculator.net/
+		//e^(ax^2+by^2-cz)-1 egyenletet kell lederiválni x, y, majd z szerint
+		//majd az deriváltba behelyettesíteni a position-t (azaz x helyére postion.x-et, y helyére postion.y-t, z helyére postion.z-t)
+		//gradiens számolás: https://sze-gyor.videotorium.hu/hu/recordings/37079/gradiens-vektor-1
 		float dx = 2 * a * position.x * exp(a * pow(position.x, 2) - c * position.z + b * pow(position.y, 2));
 		float dy = 2 * b * position.y * exp(b * pow(position.y, 2) - c * position.z + a * pow(position.x, 2));
 		float dz = -c * exp(-c * position.z + b * pow(position.y, 2) + a * pow(position.x, 2));
@@ -485,8 +490,6 @@ void onDisplay() {
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);							// background color 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the screen
 
-	wEye = camera.eye;
-
 	std::vector<vec4> image(windowWidth * windowHeight);
 	scene.render(image);
 	fullScreenTexturedQuad->LoadTexture(image);
@@ -500,10 +503,6 @@ void onKeyboard(unsigned char key, int pX, int pY) {
 	if (key == 'T') shader.setUniform(0, "top");
 	if (key == 'f') camera.Step(0.1f);
 	if (key == 'F') camera.Step(-0.1f);
-	if (key == 'u') camera.StepSide(0.1f);
-	if (key == 'U') camera.StepSide(-0.1f);
-	if (key == 'p') camera.StepBack(0.1f);
-	if (key == 'P') camera.StepBack(-0.1f);
 	if (key == 'a') animate = !animate;
 }
 
