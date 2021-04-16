@@ -170,6 +170,9 @@ class ImplicitSurface {
 	// -> exp(a*x^2+b*y^2-cz) = 1 -> a*x^2+b*y^2-cz = 0 egyenletet kell megoldani
 
 public:
+	ImplicitSurface() {
+
+	}
 	ImplicitSurface(float _a, float _b, float _c) {
 		a = _a;
 		b = _b;
@@ -186,19 +189,42 @@ public:
 
 		Hit hit;
 		hit.t = -1;
+		float t_metszes;
 		float apar, bpar, cpar;		//a másodfokú egyenlet megoldóképletének együtthatói
 		apar = a * pow(ray.dir.x, 2) + b * pow(ray.dir.y, 2);
 		bpar = a * 2 * ray.start.x * ray.dir.x + b * 2 * ray.start.y * ray.dir.y + c * ray.dir.z;
 		cpar = a * pow(ray.start.x, 2) + b * pow(ray.start.y, 2) + c * ray.start.z;
+		if (apar == 0) printf("apar is zero");
 		float discr = bpar * bpar - 4 * apar * cpar;
 		if (discr < 0) return hit;
 		float sqrt_discr = sqrtf(discr);
 		float t1 = (-bpar + sqrt_discr) / 2 / apar;
 		float t2 = (-bpar - sqrt_discr) / 2 / apar;
+		if (t1 <= 0) return hit;
+		t_metszes = (t2 > 0) ? t2 : t1;
+		vec3 position = ray.start + ray.dir * t_metszes;
+		vec3 distVector = position - vec3(0.0f, 0.0f, 0.0f);
+		float dist = length(distVector);
+		if (dist > 0.3) return hit;
+		hit.t = t_metszes;
+		hit.position = ray.start + ray.dir * hit.t;
+		hit.normal = normalize(gradiens(position));
+		hit.mat = material;
+		return hit;
+	}
+
+	/// <summary>
+	/// Normálvektor számításához
+	/// </summary>
+	/// <param name="position"></param>
+	/// <returns>a normálvektor az adott pontban</returns>
+	vec3 gradiens(vec3 position) {
+		float dx = 2 * a * position.x * exp(a * pow(position.x, 2) - c * position.z + b * pow(position.y, 2));
+		float dy = 2 * b * position.y * exp(b * pow(position.y, 2) - c * position.z + a * pow(position.x, 2));
+		float dz = -c * exp(-c * position.z + b * pow(position.y, 2) + a * pow(position.x, 2));
+		return vec3(dx, dy, dz);
 	}
 };
-
-
 
 vec3 reflect(vec3 V, vec3 N) {
 	return V - N * dot(N, V) * 2;
@@ -213,7 +239,7 @@ class Camera {
 	float fov = 45 * (float)M_PI / 180;
 public:
 	vec3 eye;
-	Camera() : eye(0, 1, 1), pvup(0, 0, 1), lookat(0, 0, 0) {
+	Camera() : eye(1, 0, 0), pvup(0, 0, -1), lookat(0, 0, 0) {		//Camera() : eye(1, 0, 0), pvup(0, 0, 1), lookat(0, 0, 0) {        -> ez is jól mutat
 		set();
 	}
 	void set() {
@@ -230,6 +256,14 @@ public:
 
 	void Step(float step) {		// fölfelé v lefelé lépünk egy kicsit
 		eye = normalize(eye + pvup * step) * length(eye);
+		set();
+	}
+	void StepSide(float step) {		// fölfelé v lefelé lépünk egy kicsit
+		eye = normalize(eye + vec3(0,1,0) * step) * length(eye);
+		set();
+	}
+	void StepBack(float step) {		// fölfelé v lefelé lépünk egy kicsit
+		eye = normalize(eye + vec3(1, 0, 0) * step) * length(eye);
 		set();
 	}
 
@@ -256,10 +290,12 @@ bool animate = true;
 
 class Scene {
 	Sphere sphere;
+	ImplicitSurface implicitSurface;
 
 public:
 	Scene() {
 		sphere = Sphere(vec3(0, 0, 0), 0.2f);
+		implicitSurface = ImplicitSurface(10.5f, 10.5f, 1.5f);
 	}
 	Hit firstIntersect(Ray ray) {
 		Hit bestHit;
@@ -275,7 +311,10 @@ public:
 		tempHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 1.2f, 3);		//mat = 2 -> arany; mat = 3 -> teljes visszaverödés
 		if (tempHit.t > 0.0f && (bestHit.t < 0.0f || tempHit.t < bestHit.t))  bestHit = tempHit;
 
-		tempHit = sphere.intersect(ray, 2);
+		//tempHit = sphere.intersect(ray, 2);
+		//if (tempHit.t > 0.0f && (bestHit.t < 0.0f || tempHit.t < bestHit.t))  bestHit = tempHit;
+
+		tempHit = implicitSurface.intersect(ray, 2);
 		if (tempHit.t > 0.0f && (bestHit.t < 0.0f || tempHit.t < bestHit.t))  bestHit = tempHit;
 
 		if (dot(ray.dir, bestHit.normal) > 0.0f) bestHit.normal = bestHit.normal * (-1);
@@ -469,6 +508,10 @@ void onKeyboard(unsigned char key, int pX, int pY) {
 	if (key == 'T') shader.setUniform(0, "top");
 	if (key == 'f') camera.Step(0.1f);
 	if (key == 'F') camera.Step(-0.1f);
+	if (key == 'u') camera.StepSide(0.1f);
+	if (key == 'U') camera.StepSide(-0.1f);
+	if (key == 'p') camera.StepBack(0.1f);
+	if (key == 'P') camera.StepBack(-0.1f);
 	if (key == 'a') animate = !animate;
 }
 
