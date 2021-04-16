@@ -40,13 +40,15 @@ const int maxdepth = 5;
 const float epsilon = 0.01f;		//eredeti: 0.01
 
 struct Hit {
-	float t;
-	vec3 position, normal;
-	int mat;	// smooth?
+	float t;		//a metszés ideje
+	vec3 position;	//a metszéspont helye
+	vec3 normal;	//a metszéspontban vett normálvektor
+	int mat;	// a metszéspontban lévö material id-ja
 };
 
 struct Ray {
-	vec3 start, dir, weight;
+	vec3 start, dir;
+	vec3 weight;
 
 	Ray(vec3 _start, vec3 _dir) {
 		start = _start;
@@ -57,7 +59,6 @@ struct Ray {
 
 const int objFaces = 12;
 
-int top;
 vec3 kd[2], ks[2], F0Gold;
 vec3 F0PerfectReflect;
 
@@ -79,6 +80,13 @@ public:
 		}
 	}
 
+	/// <summary>
+	/// Meghatároz egy síkot egy pontjával és normálvektorával
+	/// </summary>
+	/// <param name="i"></param>
+	/// <param name="scale"></param>
+	/// <param name="p">Kimenö paraméter: a sík egy pontja</param>
+	/// <param name="normal">Kimenö paraméter: a sík normálvektora</param>
 	void getObjPlane(int i, float scale, vec3& p, vec3& normal) {
 		vec3 p1 = v[planes[3 * i] - 1];
 		vec3 p2 = v[planes[3 * i + 1] - 1];
@@ -294,8 +302,13 @@ public:
 		sphere = Sphere(vec3(-0.5f, 0, 0), 0.2f);
 		implicitSurface = ImplicitSurface(10.5f, 10.5f, 1.5f);
 	}
+	/// <summary>
+	/// itt határozzuk meg, hogy milyen objektumokat tartalmazzon a scene, miket akarunk elmetszeni a sugárral
+	/// </summary>
+	/// <param name="ray"></param>
+	/// <returns></returns>
 	Hit firstIntersect(Ray ray) {
-		Hit bestHit;
+		Hit bestHit;		//a szemhez legközelebbi metszéspont amit a sugár elmetsz (objektum/sugár metszéspont)
 		Hit tempHit;
 		bestHit.t = -1;
 		tempHit.t = -1;
@@ -305,11 +318,12 @@ public:
 		//tempHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 1.0f, 2);
 		//if (tempHit.t > 0 && (bestHit.t < 0 || tempHit.t < bestHit.t))  bestHit = tempHit;
 
+		
 		tempHit = convexPolyhedron.intersectConvexPolyhedron(ray, bestHit, 1.2f, 3);		//mat = 2 -> arany; mat = 3 -> teljes visszaverödés
-		if (tempHit.t > 0.0f && (bestHit.t < 0.0f || tempHit.t < bestHit.t))  bestHit = tempHit;
+		if (tempHit.t > 0.0f && (bestHit.t < 0.0f || tempHit.t < bestHit.t))  bestHit = tempHit;		//ha ezen metszéspont közelebb van a szemhez mint az elözö akkor váltsuk le
 
 		tempHit = sphere.intersect(ray, 2);
-		if (tempHit.t > 0.0f && (bestHit.t < 0.0f || tempHit.t < bestHit.t))  bestHit = tempHit;
+		if (tempHit.t > 0.0f && (bestHit.t < 0.0f || tempHit.t < bestHit.t))  bestHit = tempHit;		//ha ezen metszéspont közelebb van a szemhez mint az elözö akkor váltsuk le
 
 		tempHit = implicitSurface.intersect(ray, 2);
 		if (tempHit.t > 0.0f && (bestHit.t < 0.0f || tempHit.t < bestHit.t))  bestHit = tempHit;
@@ -337,11 +351,13 @@ public:
 				break;
 			}
 			//mirror reflection
+			//amennyiben spkekuláris(türözö) arany a material
 			if (hit.mat == 2) {
 				ray.weight = ray.weight * (F0Gold + (vec3(1, 1, 1) - F0Gold) * pow(dot(-ray.dir, hit.normal), 5));
 				ray.start = hit.position + hit.normal * epsilon;
 				ray.dir = reflect(ray.dir, hit.normal);
 			}
+			//amennyiben spkekuláris(türözö) teljes visszaverödést biztosító a material
 			if (hit.mat == 3) {
 				ray.weight = ray.weight * (F0PerfectReflect + (vec3(1, 1, 1) - F0PerfectReflect) * pow(dot(-ray.dir, hit.normal), 5));
 				ray.start = hit.position + hit.normal * epsilon;
@@ -440,11 +456,10 @@ void onInitialization() {
 
 	// create program for the GPU
 	shader.create(vertexSourceForTexturing, fragmentSourceForTexturing, "fragmentColor");
-	top = 1;
 
 	const float g = 0.618f;
 	const float G = 1.618f;
-	std::vector<vec3> vLocal = {
+	std::vector<vec3> vLocal = {		//a dedokaéder csúcspont koordinátái
 		vec3(0,g,G), vec3(0,-g,G), vec3(0,-g,-G), vec3(0,g,-G),
 		vec3(G,0,g), vec3(-G,0,g), vec3(-G,0,-g), vec3(G,0,-g),
 		vec3(g,G,0), vec3(-g,G,0), vec3(-g,-G,0), vec3(g,-G,0),
@@ -452,7 +467,7 @@ void onInitialization() {
 		vec3(1,-1,-1), vec3(1,1,-1), vec3(-1,1,-1), vec3(-1,-1,-1)
 	};
 
-	std::vector<int> planesLocal = {
+	std::vector<int> planesLocal = {	//mely csúcspontok tartozna ka dedokaéder egyes síkjaihoz
 		1,2,16,
 		1,13,9,
 		1,14,6,
@@ -469,6 +484,7 @@ void onInitialization() {
 
 	convexPolyhedron = ConvexPolyhedron(vLocal, planesLocal);
 
+	//2 féle diffúz materialunk legyen, itt adjuk meg a tulajdonságait
 	kd[0] = vec3(0.1f, 0.2f, 0.3f);
 	kd[1] = vec3(1.5f, 0.6f, 0.4f);
 	ks[0] = vec3(5, 5, 5);
