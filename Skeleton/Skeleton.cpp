@@ -31,10 +31,10 @@ const char* fragmentSourceForTexturing = R"(
 
 //------------------------------------------------
 
-const vec3 La = vec3(0.5f, 0.6f, 0.6f);
-const vec3 Le = vec3(0.8f, 0.8f, 0.8f);
+const vec3 La = vec3(0.5f, 0.6f, 0.6f);		//az ambiens fényforrásból adódó sugársürüség
+const vec3 Le = vec3(0.8f, 0.8f, 0.8f);		//fényforrásunk intenzitása, sugársürüsége (itt most csak egy fényforrásunk lesz)
 const vec3 lightPosition = vec3(0.4f, 0.4f, 0.25f);
-const vec3 ka = vec3(0.5f, 0.5f, 0.5f);
+const vec3 ka = vec3(0.5f, 0.5f, 0.5f);		//az ambiens visszaverödési tényezö
 const float shininess = 500.0f;
 const int maxdepth = 5;
 const float epsilon = 0.01f;		//eredeti: 0.01
@@ -187,7 +187,9 @@ public:
 	}
 
 	Hit intersect(const Ray& ray, int material) {
-		//a felület implicit egyenletébe behelyettesítjük a sugár egyenletét
+		//a felület implicit egyenletébe behelyettesítjük a sugár egyenletét: ray = ray.start + ray.dir * t
+		//sugár egyen letés fel kell bontani x,y,z komponensekre: ray.x = ray.start.x + ray.dir.x * t stb...
+		//ezt a szétbontott sugáregyenletet helyettesítjük be a felület implicit egyenletébe
 		//pontosabban ebbe: mert elég ha itt teljesül az egyenlö nulla feltétel: a*x^2+b*y^2-cz = 0
 		//a* (ray.start.x + ray.dir.x * t_metszes) ^ 2 + b * (ray.start.y + ray.dir.y * t_metszes) ^ 2 - c * (ray.start.z + ray.dir.z * t_metszes) = 0
 		//fenti másodfokú egyenletben t_metszes az ismeretlen (azon t idöpillanat amikor a sugár elmetszi ezen felületet)
@@ -353,7 +355,7 @@ public:
 			//mirror reflection
 			//amennyiben spkekuláris(türözö) arany a material
 			if (hit.mat == 2) {
-				ray.weight = ray.weight * (F0Gold + (vec3(1, 1, 1) - F0Gold) * pow(dot(-ray.dir, hit.normal), 5));
+				ray.weight = ray.weight * (F0Gold + (vec3(1, 1, 1) - F0Gold) * pow(dot(-ray.dir, hit.normal), 5));		//ray.weight azt fogja megmutatni h a beérkezö fénysugár hanyad részét veri vissza a felület
 				ray.start = hit.position + hit.normal * epsilon;
 				ray.dir = reflect(ray.dir, hit.normal);
 			}
