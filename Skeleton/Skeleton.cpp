@@ -343,7 +343,9 @@ public:
 				vec3 lightdir = normalize(lightPosition - hit.position);
 				float cosTheta = dot(hit.normal, lightdir);
 				if (cosTheta > 0) {
-					vec3 LeIn = Le / dot(lightPosition - hit.position, lightPosition - hit.position);
+					//float distance = length(lightPosition - hit.position);		//pont fényforrásunk van -> a fényerösség a távolság négyzetével arányosan csökken (ugyan az mint a lenti)
+					//vec3 LeIn = Le / pow(distance, 2);
+					vec3 LeIn = Le / dot(lightPosition - hit.position, lightPosition - hit.position);		//pont fényforrásunk van -> a fényerösség a távolság négyzetével arányosan csökken (ugyan az mint a fenti)
 					outRadiance = outRadiance + (ray.weight * LeIn * kd[hit.mat] * cosTheta);
 					vec3 halfway = normalize(-ray.dir + lightdir);
 					float cosDelta = dot(hit.normal, halfway);
